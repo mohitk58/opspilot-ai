@@ -30,16 +30,28 @@ npm run dev:api                      # NestJS on :4000
 npm run dev:web                      # Next.js on :3000
 npm run prisma:migrate -w apps/api   # create/apply dev migrations
 npm run lint / npm test / npm run build
+npm test -w apps/api -- incidents.service.spec.ts   # run a single test file (Jest pattern match)
 ```
 
 Env: copy `.env.example` → `.env`. Never commit `.env`.
+
+### Scaffold gaps (update this list as they're filled)
+
+Root scripts use `--workspaces --if-present`; some tooling is referenced by scripts but **not yet created**. Add these when first needed instead of assuming they exist:
+
+- ESLint config in `apps/web` (lint script exists but has no config)
+- `apps/api/prisma/seed.ts` (referenced by `prisma:seed` and the API tsconfig `include`)
+
+Filled: Jest config (`apps/api/jest.config.js`), ESLint flat config (`apps/api/eslint.config.mjs`), and the initial Prisma migration exist as of the auth module.
+
+Note: `@opspilot/types` is consumed as raw TS source (`main: src/index.ts`, no build step) — consumers compile it themselves, so keep it free of runtime deps other than `zod`.
 
 ## Architecture rules (do not violate without discussing)
 
 1. **Modular monolith, not microservices.** New backend features are NestJS modules with clear boundaries (see module table in docs/02). Modules communicate through services or domain events — never reach into another module's repository/Prisma calls.
 2. **All DTO validation via Zod schemas in `packages/types`.** Frontend and backend import the same schema. Do not duplicate validation logic or use class-validator.
 3. **Incident status transitions** must use `INCIDENT_TRANSITIONS` from `@opspilot/types`. Invalid transitions return 422.
-4. **Every mutation** writes an `IncidentTimelineEvent` (for incidents) and an `AuditLog` row, and publishes a domain event **via the OutboxEvent table in the same transaction** — never publish to RabbitMQ directly inside a request handler.
+4. **Every mutation** writes an `IncidentTimelineEvent` (for incidents) and an `AuditLog` row, and publishes a domain event **via the OutboxEvent table in the same transaction** — never publish to RabbitMQ directly inside a request handler. Documented exemption: routine refresh-token rotation is not audited (one row per silent 15-min refresh is noise); login, logout, and replay-detection events are.
 5. **Timeline and audit tables are append-only.** No updates, no deletes.
 6. **Database changes only via `prisma migrate dev`** (never `db push`). Breaking changes use expand-and-contract (docs/03 §5). Every index must map to a named query — add a comment saying which.
 7. **Caching:** cache-aside in Redis with explicit key deletion on writes (key patterns in docs/02 §2.4). Redis failure must degrade gracefully to DB reads (100 ms timeout), never take the request down.
@@ -61,17 +73,18 @@ Env: copy `.env.example` → `.env`. Never commit `.env`.
 
 Done:
 - [x] Docs (PRD, HLD/ADRs, DB design), monorepo scaffold, Docker Compose, CI skeleton
-- [x] Prisma schema (16 models), health endpoint, web shell (landing/login/dashboard)
+- [x] Prisma schema (13 models, 7 enums), health endpoint, web shell (landing/login/dashboard)
+
+- [x] Auth module — signup/login/refresh/logout (Epic 1, A1–A5): RBAC guard, refresh rotation with replay detection, unit tests, Swagger annotations. Also introduced the shared Zod pipe, RFC 7807 filter, and degradation-safe Redis service.
 
 Next, in order:
-1. **Auth module** — signup/login/refresh/logout per docs/01 Epic 1 (stories A1–A5). Includes RBAC guard, refresh rotation, unit tests, Swagger annotations.
-2. **Incidents module** — Epic 2 (I1–I6): CRUD, status machine, per-project incident numbers (`PAY-42`, race-safe — see docs/03 §3), timeline, comments.
-3. **Deployments module** — Epic 3, including hashed API-key auth for CI ingestion.
-4. **Dashboard module** — Epic 4, Redis-cached aggregates + cache invalidation.
-5. **Workers** — outbox relay, RabbitMQ consumers (notifications, audit), metrics simulator cron.
-6. **Frontend features** — auth flow, incident list/detail with optimistic status updates, dashboard charts (Recharts).
-7. **Ops** — Prometheus metrics, Grafana dashboard JSON, Dockerfiles, deploy pipeline with health gate + rollback.
-8. **Performance case studies** — seed 1M incidents, capture EXPLAIN ANALYZE before/after indexes; dashboard latency before/after Redis. Write results to `docs/perf/`.
+1. **Incidents module** — Epic 2 (I1–I6): CRUD, status machine, per-project incident numbers (`PAY-42`, race-safe — see docs/03 §3), timeline, comments.
+2. **Deployments module** — Epic 3, including hashed API-key auth for CI ingestion.
+3. **Dashboard module** — Epic 4, Redis-cached aggregates + cache invalidation.
+4. **Workers** — outbox relay, RabbitMQ consumers (notifications, audit), metrics simulator cron.
+5. **Frontend features** — auth flow, incident list/detail with optimistic status updates, dashboard charts (Recharts).
+6. **Ops** — Prometheus metrics, Grafana dashboard JSON, Dockerfiles, deploy pipeline with health gate + rollback.
+7. **Performance case studies** — seed 1M incidents, capture EXPLAIN ANALYZE before/after indexes; dashboard latency before/after Redis. Write results to `docs/perf/`.
 
 ## The portfolio narrative (why it matters)
 

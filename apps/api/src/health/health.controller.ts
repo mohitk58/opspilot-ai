@@ -1,6 +1,8 @@
 import { Controller, Get } from '@nestjs/common';
+import { Public } from '../auth/decorators/public.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 
+@Public() // deploy pipeline probes this unauthenticated
 @Controller('health')
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}

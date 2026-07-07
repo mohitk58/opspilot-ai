@@ -54,6 +54,28 @@ export const LoginDto = z.object({
 });
 export type LoginDto = z.infer<typeof LoginDto>;
 
+export const UpdateUserRoleDto = z.object({
+  role: Role,
+});
+export type UpdateUserRoleDto = z.infer<typeof UpdateUserRoleDto>;
+
+// Safe user shape returned by the API — never includes passwordHash.
+export const AuthUserDto = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  fullName: z.string(),
+  role: Role,
+  organizationId: z.string().uuid(),
+  avatarUrl: z.string().nullable().optional(),
+  lastLoginAt: z.coerce.date().nullable().optional(),
+});
+export type AuthUserDto = z.infer<typeof AuthUserDto>;
+
+export interface AuthResponse {
+  user: AuthUserDto;
+  accessToken: string;
+}
+
 // ── Incident DTOs ───────────────────────────────────────────
 
 export const CreateIncidentDto = z.object({
