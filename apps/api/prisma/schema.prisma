@@ -1,0 +1,294 @@
+// OpsPilot AI — database schema
+// See docs/03-DATABASE-DESIGN.md for the rationale behind every index.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── Enums ─────────────────────────
+
+enum Role {
+  ADMIN
+  ENGINEER
+  VIEWER
+}
+
+enum IncidentSeverity {
+  SEV1
+  SEV2
+  SEV3
+  SEV4
+}
+
+enum IncidentStatus {
+  OPEN
+  INVESTIGATING
+  IDENTIFIED
+  MONITORING
+  RESOLVED
+}
+
+enum TimelineEventType {
+  CREATED
+  STATUS_CHANGED
+  ASSIGNED
+  COMMENT
+  LINKED_DEPLOYMENT
+  SEVERITY_CHANGED
+}
+
+enum DeploymentEnv {
+  DEV
+  STAGING
+  PRODUCTION
+}
+
+enum DeploymentStatus {
+  PENDING
+  IN_PROGRESS
+  SUCCESS
+  FAILED
+  ROLLED_BACK
+}
+
+enum NotificationType {
+  INCIDENT_ASSIGNED
+  INCIDENT_STATUS
+  DEPLOYMENT_FAILED
+  MENTION
+}
+
+// ───────────────────────── Core ─────────────────────────
+
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users    User[]
+  projects Project[]
+}
+
+model User {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  email          String    @unique
+  passwordHash   String
+  fullName       String
+  role           Role      @default(ENGINEER)
+  avatarUrl      String?
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization      Organization            @relation(fields: [organizationId], references: [id])
+  memberships       ProjectMember[]
+  createdIncidents  Incident[]              @relation("IncidentCreator")
+  assignedIncidents Incident[]              @relation("IncidentAssignee")
+  timelineEvents    IncidentTimelineEvent[]
+  notifications     Notification[]
+  refreshTokens     RefreshToken[]
+  auditLogs         AuditLog[]
+
+  @@index([organizationId])
+}
+
+model Project {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  name           String
+  key            String
+  description    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  members      ProjectMember[]
+  incidents    Incident[]
+  deployments  Deployment[]
+  apiKeys      ApiKey[]
+  metrics      SystemMetric[]
+
+  @@unique([organizationId, key])
+}
+
+model ProjectMember {
+  projectId String   @db.Uuid
+  userId    String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@id([projectId, userId])
+  @@index([userId])
+}
+
+// ───────────────────────── Incidents ─────────────────────────
+
+model Incident {
+  id           String           @id @default(uuid()) @db.Uuid
+  projectId    String           @db.Uuid
+  number       Int
+  title        String
+  description  String
+  severity     IncidentSeverity
+  status       IncidentStatus   @default(OPEN)
+  createdById  String           @db.Uuid
+  assigneeId   String?          @db.Uuid
+  deploymentId String?          @db.Uuid
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  resolvedAt   DateTime?
+  deletedAt    DateTime?
+
+  project    Project                 @relation(fields: [projectId], references: [id])
+  createdBy  User                    @relation("IncidentCreator", fields: [createdById], references: [id])
+  assignee   User?                   @relation("IncidentAssignee", fields: [assigneeId], references: [id])
+  deployment Deployment?             @relation(fields: [deploymentId], references: [id])
+  timeline   IncidentTimelineEvent[]
+
+  @@unique([projectId, number])
+  @@index([projectId, status, createdAt(sort: Desc)])
+  @@index([assigneeId, status])
+  @@index([status, severity])
+}
+
+model IncidentTimelineEvent {
+  id         String            @id @default(uuid()) @db.Uuid
+  incidentId String            @db.Uuid
+  actorId    String            @db.Uuid
+  type       TimelineEventType
+  payload    Json
+  createdAt  DateTime          @default(now())
+
+  incident Incident @relation(fields: [incidentId], references: [id])
+  actor    User     @relation(fields: [actorId], references: [id])
+
+  @@index([incidentId, createdAt])
+  @@index([createdAt(sort: Desc)])
+}
+
+// ───────────────────────── Deployments ─────────────────────────
+
+model Deployment {
+  id          String           @id @default(uuid()) @db.Uuid
+  projectId   String           @db.Uuid
+  version     String
+  environment DeploymentEnv
+  status      DeploymentStatus @default(PENDING)
+  triggeredBy String
+  commitSha   String?
+  durationSec Int?
+  startedAt   DateTime         @default(now())
+  finishedAt  DateTime?
+  metadata    Json?
+
+  project   Project    @relation(fields: [projectId], references: [id])
+  incidents Incident[]
+
+  @@index([projectId, environment, startedAt(sort: Desc)])
+  @@index([startedAt, status])
+}
+
+// ───────────────────────── Auth ─────────────────────────
+
+model RefreshToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  replacedBy String?   @db.Uuid
+  userAgent  String?
+  ip         String?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, expiresAt])
+}
+
+model ApiKey {
+  id         String    @id @default(uuid()) @db.Uuid
+  projectId  String    @db.Uuid
+  name       String
+  keyHash    String    @unique
+  prefix     String
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+
+  project Project @relation(fields: [projectId], references: [id])
+}
+
+// ───────────────────────── Async / audit ─────────────────────────
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  type      NotificationType
+  title     String
+  body      String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, readAt, createdAt(sort: Desc)])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @db.Uuid
+  action     String
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorId, createdAt])
+}
+
+// Outbox: solves the dual-write problem (DB commit vs. MQ publish)
+model OutboxEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  routingKey  String
+  payload     Json
+  publishedAt DateTime?
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@index([publishedAt, createdAt])
+}
+
+// ───────────────────────── Metrics (simulated in MVP) ─────────────────────────
+
+model SystemMetric {
+  id         BigInt   @id @default(autoincrement())
+  projectId  String   @db.Uuid
+  service    String
+  metric     String
+  value      Float
+  recordedAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@index([projectId, service, metric, recordedAt])
+}

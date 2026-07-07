@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# builds
+dist/
+.next/
+out/
+coverage/
+
+# env & secrets
+.env
+.env.*
+!.env.example
+
+# prisma
+apps/api/prisma/*.db
+
+# logs & OS
+*.log
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

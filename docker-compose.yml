@@ -1,0 +1,48 @@
+# Local development infrastructure for OpsPilot AI
+# Usage: docker compose up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: opspilot-postgres
+    environment:
+      POSTGRES_USER: opspilot
+      POSTGRES_PASSWORD: opspilot
+      POSTGRES_DB: opspilot
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opspilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: opspilot-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: opspilot-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: opspilot
+      RABBITMQ_DEFAULT_PASS: opspilot
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Management UI → http://localhost:15672
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
