@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
+import { DeploymentsModule } from './deployments/deployments.module';
+import { IncidentsModule } from './incidents/incidents.module';
+import { OrgsModule } from './orgs/orgs.module';
 import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import { HealthController } from './health/health.controller';
 import { PrismaModule } from './prisma/prisma.module';
@@ -13,8 +16,11 @@ import { RedisModule } from './redis/redis.module';
     PrismaModule,
     RedisModule,
     AuthModule,
+    OrgsModule,
+    IncidentsModule,
+    DeploymentsModule,
     // Feature modules land here as they are built:
-    // IncidentsModule, DeploymentsModule, DashboardModule, ...
+    // DashboardModule, ...
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_FILTER, useClass: ProblemDetailsFilter }],
