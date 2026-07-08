@@ -40,9 +40,8 @@ Env: copy `.env.example` → `.env`. Never commit `.env`.
 Root scripts use `--workspaces --if-present`; some tooling is referenced by scripts but **not yet created**. Add these when first needed instead of assuming they exist:
 
 - ESLint config in `apps/web` (lint script exists but has no config)
-- `apps/api/prisma/seed.ts` (referenced by `prisma:seed` and the API tsconfig `include`)
 
-Filled: Jest config (`apps/api/jest.config.js`), ESLint flat config (`apps/api/eslint.config.mjs`), and the initial Prisma migration exist as of the auth module.
+Filled: Jest config (`apps/api/jest.config.js`), ESLint flat config (`apps/api/eslint.config.mjs`), and the initial Prisma migration exist as of the auth module. `apps/api/prisma/seed.ts` seeds demo logins per role (admin/engineer/viewer `@opspilot.dev`, password from `SEED_PASSWORD`, dev fallback `Password123!`); it runs via ts-node and stays outside the tsconfig `include`/`rootDir`, which cover only `src/`.
 
 Note: `@opspilot/types` is consumed as raw TS source (`main: src/index.ts`, no build step) — consumers compile it themselves, so keep it free of runtime deps other than `zod`.
 
@@ -76,13 +75,17 @@ Done:
 - [x] Prisma schema (13 models, 7 enums), health endpoint, web shell (landing/login/dashboard)
 
 - [x] Auth module — signup/login/refresh/logout (Epic 1, A1–A5): RBAC guard, refresh rotation with replay detection, unit tests, Swagger annotations. Also introduced the shared Zod pipe, RFC 7807 filter, and degradation-safe Redis service.
+- [x] Web auth flow — login/signup pages (react-hook-form + shared Zod DTOs), access token in memory only with single-flight silent refresh and 401 retry (`apps/web/lib/api.ts`), guarded `(app)` layout that bootstraps the session from the refresh cookie, logout. TanStack Query provider wired in the root layout.
+- [x] Orgs module (minimal Epic 5 surface) — `POST/GET /projects`, member add/remove (ADMIN-only writes), org-scoped lookups exported for other modules. Plus `GET /users` directory on the auth module for pickers.
+- [x] Incidents module (Epic 2, I1–I6) — CRUD + status machine (422 via `INCIDENT_TRANSITIONS`), race-safe per-project numbers (atomic `UPDATE..RETURNING` on `Project.nextIncidentNumber`, verified with 20 parallel creates), comments as COMMENT timeline events, four-step transaction (write + timeline + audit + outbox) on every mutation, `dash:summary:{projectId}` invalidation. UI: incidents list with filters/search/pagination, create form, detail with legal-transitions-only status dropdown (optimistic + rollback), assignee picker, timeline feed, comments; projects page with ADMIN create form.
+
+- [x] Deployments module (Epic 3, D1–D4) — dual-auth ingestion (JWT or hashed `X-API-Key`), `Idempotency-Key` replay via Redis SET NX (24 h, degrades gracefully), status lifecycle with `deployment.recorded`/`deployment.failed` outbox events, ADMIN API-key management (plaintext shown once), incident↔deployment linking with `LINKED_DEPLOYMENT` timeline events. UI: deployments page (filters + record form), per-project API-key panel, "caused by deployment" on incident create/detail.
+
+Every module ships API + UI together (standing instruction): TanStack Query hooks over `authApi` in `apps/web/hooks/`, pages under the guarded `(app)` layout.
 
 Next, in order:
-1. **Incidents module** — Epic 2 (I1–I6): CRUD, status machine, per-project incident numbers (`PAY-42`, race-safe — see docs/03 §3), timeline, comments.
-2. **Deployments module** — Epic 3, including hashed API-key auth for CI ingestion.
-3. **Dashboard module** — Epic 4, Redis-cached aggregates + cache invalidation.
-4. **Workers** — outbox relay, RabbitMQ consumers (notifications, audit), metrics simulator cron.
-5. **Frontend features** — auth flow, incident list/detail with optimistic status updates, dashboard charts (Recharts).
+1. **Dashboard module** — Epic 4, Redis-cached aggregates + cache invalidation. UI: dashboard charts (Recharts), replacing the interim client-side counts.
+2. **Workers** — outbox relay, RabbitMQ consumers (notifications, audit), metrics simulator cron.
 6. **Ops** — Prometheus metrics, Grafana dashboard JSON, Dockerfiles, deploy pipeline with health gate + rollback.
 7. **Performance case studies** — seed 1M incidents, capture EXPLAIN ANALYZE before/after indexes; dashboard latency before/after Redis. Write results to `docs/perf/`.
 
