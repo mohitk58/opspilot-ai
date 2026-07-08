@@ -50,6 +50,14 @@ export class RedisService implements OnModuleDestroy {
     return this.safe(() => this.client.set(key, value, 'EX', ttlSec), null);
   }
 
+  /** SET NX EX — true if this call claimed the key, null when Redis is degraded. */
+  setIfAbsent(key: string, value: string, ttlSec: number): Promise<boolean | null> {
+    return this.safe(
+      async () => (await this.client.set(key, value, 'EX', ttlSec, 'NX')) === 'OK',
+      null,
+    );
+  }
+
   del(...keys: string[]): Promise<unknown> {
     if (keys.length === 0) return Promise.resolve(null);
     return this.safe(() => this.client.del(...keys), null);
