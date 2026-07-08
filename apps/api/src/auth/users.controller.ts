@@ -1,4 +1,4 @@
-import { Body, Controller, Param, ParseUUIDPipe, Patch, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { UpdateUserRoleDto } from '@opspilot/types';
@@ -17,6 +17,13 @@ import { AccessTokenPayload } from './token.service';
 @Controller('users')
 export class UsersController {
   constructor(private readonly auth: AuthService) {}
+
+  @Get()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List users in my organization (assignee/member pickers)' })
+  list(@CurrentUser() actor: AccessTokenPayload) {
+    return this.auth.listUsers(actor);
+  }
 
   @Patch(':id/role')
   @Roles('ADMIN')

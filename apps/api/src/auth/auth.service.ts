@@ -214,6 +214,17 @@ export class AuthService {
     return this.toAuthUser(user);
   }
 
+  /** Org-scoped user directory (assignee pickers, member management). */
+  async listUsers(actor: AccessTokenPayload) {
+    const users = await this.prisma.user.findMany({
+      where: { organizationId: actor.orgId, isActive: true, deletedAt: null },
+      select: { id: true, fullName: true, email: true, role: true },
+      orderBy: { fullName: 'asc' },
+      take: 100, // directory, not a data grid — paginate when an org outgrows this
+    });
+    return { data: users, meta: { total: users.length, page: 1, pageSize: 100 } };
+  }
+
   /** A4 — ADMIN-only; takes effect on the target's next token refresh. */
   async updateRole(
     actor: AccessTokenPayload,
