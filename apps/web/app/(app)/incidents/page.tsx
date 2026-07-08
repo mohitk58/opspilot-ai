@@ -39,6 +39,7 @@ function IncidentsView() {
       page: 1,
       pageSize: 25,
       status: status && STATUSES.includes(status) ? status : undefined, // dashboard tiles deep-link here
+      projectId: searchParams.get('projectId') ?? undefined,
     };
   });
   const { data, isPending, error } = useIncidents(filters);

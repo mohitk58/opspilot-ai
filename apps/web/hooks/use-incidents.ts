@@ -6,7 +6,6 @@ import type {
   ChangeIncidentStatusDto,
   CreateIncidentDto,
   IncidentDto,
-  IncidentStatus,
   ListIncidentsQuery,
   Paginated,
   TimelineEventDto,
@@ -30,35 +29,6 @@ export function useIncidents(filters: IncidentFilters) {
     queryKey: ['incidents', 'list', filters],
     queryFn: () => authApi<Paginated<IncidentDto>>(`/incidents${toQueryString(filters)}`),
     placeholderData: (previous) => previous, // keep the table while filters change
-  });
-}
-
-const ALL_STATUSES: IncidentStatus[] = [
-  'OPEN',
-  'INVESTIGATING',
-  'IDENTIFIED',
-  'MONITORING',
-  'RESOLVED',
-];
-
-/**
- * Interim dashboard counts derived from the list endpoint (meta.total with
- * pageSize=1). Replaced by the Redis-cached dashboard module (Epic 4).
- */
-export function useStatusCounts() {
-  return useQuery({
-    queryKey: ['incidents', 'counts'],
-    queryFn: async () => {
-      const entries = await Promise.all(
-        ALL_STATUSES.map(async (status) => {
-          const res = await authApi<Paginated<IncidentDto>>(
-            `/incidents?status=${status}&pageSize=1`,
-          );
-          return [status, res.meta.total] as const;
-        }),
-      );
-      return Object.fromEntries(entries) as Record<IncidentStatus, number>;
-    },
   });
 }
 
