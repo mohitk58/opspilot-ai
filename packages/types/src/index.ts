@@ -274,6 +274,43 @@ export interface IncidentDto {
   deployment: { id: string; version: string; environment: DeploymentEnv } | null;
 }
 
+// ── Dashboard (Epic 4) ──────────────────────────────────────
+
+export const DashboardQuery = z.object({
+  projectId: z.string().uuid().optional(),
+});
+export type DashboardQuery = z.infer<typeof DashboardQuery>;
+
+export interface TrendPointDto {
+  /** ISO date (day precision), e.g. "2026-07-08" */
+  day: string;
+  count: number;
+}
+
+export interface DashboardSummaryDto {
+  incidentsByStatus: Record<IncidentStatus, number>;
+  /** Open = any non-RESOLVED status (M1) */
+  openBySeverity: Record<IncidentSeverity, number>;
+  deployments30d: { total: number; succeeded: number; failed: number; successRate: number | null };
+  trends: {
+    incidentsOpened: TrendPointDto[];
+    incidentsResolved: TrendPointDto[];
+    deploysSucceeded: TrendPointDto[];
+    deploysFailed: TrendPointDto[];
+  };
+  /** Server time the aggregate was computed (cache may serve it up to 60 s) */
+  computedAt: string;
+}
+
+export interface ActivityItemDto {
+  id: string;
+  type: TimelineEventType;
+  payload: unknown;
+  createdAt: string;
+  actor: { id: string; fullName: string };
+  incident: { id: string; displayNumber: string; title: string };
+}
+
 // ── Shared response envelope ────────────────────────────────
 
 export interface Paginated<T> {
