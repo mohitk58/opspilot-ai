@@ -81,11 +81,12 @@ Done:
 
 - [x] Deployments module (Epic 3, D1–D4) — dual-auth ingestion (JWT or hashed `X-API-Key`), `Idempotency-Key` replay via Redis SET NX (24 h, degrades gracefully), status lifecycle with `deployment.recorded`/`deployment.failed` outbox events, ADMIN API-key management (plaintext shown once), incident↔deployment linking with `LINKED_DEPLOYMENT` timeline events. UI: deployments page (filters + record form), per-project API-key panel, "caused by deployment" on incident create/detail.
 
+- [x] Dashboard module (Epic 4, M1/M2/M4) — cache-aside summary (`dash:summary:*`, 60 s) and activity (`dash:activity:*`, 30 s) with write-invalidation and cross-org 404 before cache; UI: severity tiles, Recharts trend charts (palette validated for CVD/contrast on the dark surface), activity feed. **Measured:** p50 1214 ms → 1 ms at 20 conns over 200k incidents — `docs/perf/dashboard-redis-caching.md`. M3 (SystemMetric charts) deferred to the metrics module + simulator cron. Note: the dev DB keeps the 200k-row `LOAD` project used for the measurement.
+
 Every module ships API + UI together (standing instruction): TanStack Query hooks over `authApi` in `apps/web/hooks/`, pages under the guarded `(app)` layout.
 
 Next, in order:
-1. **Dashboard module** — Epic 4, Redis-cached aggregates + cache invalidation. UI: dashboard charts (Recharts), replacing the interim client-side counts.
-2. **Workers** — outbox relay, RabbitMQ consumers (notifications, audit), metrics simulator cron.
+1. **Workers** — outbox relay, RabbitMQ consumers (notifications, audit), metrics simulator cron; then the metrics read API + M3 charts.
 6. **Ops** — Prometheus metrics, Grafana dashboard JSON, Dockerfiles, deploy pipeline with health gate + rollback.
 7. **Performance case studies** — seed 1M incidents, capture EXPLAIN ANALYZE before/after indexes; dashboard latency before/after Redis. Write results to `docs/perf/`.
 
