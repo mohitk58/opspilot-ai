@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@hookform/resolvers": "^3.10.0",
     "@opspilot/types": "*",
     "@tanstack/react-query": "^5.62.0",
     "next": "^15.1.0",
