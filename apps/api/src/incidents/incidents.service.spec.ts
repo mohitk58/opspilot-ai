@@ -143,6 +143,13 @@ describe('IncidentsService', () => {
       expect(types).toEqual(['CREATED', 'ASSIGNED']);
     });
 
+    it('assignment at creation also emits incident.assigned (I6 — the consumer notifies from it)', async () => {
+      await service.create(actor, { ...createDto, assigneeId: assignee.id }, ctx);
+
+      const keys = prisma.outboxEvent.create.mock.calls.map((c) => c[0].data.routingKey);
+      expect(keys).toEqual(['incident.created', 'incident.assigned']);
+    });
+
     it('links a deployment (D4): validates same-project and writes LINKED_DEPLOYMENT', async () => {
       await service.create(actor, { ...createDto, deploymentId: 'deploy-1' }, ctx);
 

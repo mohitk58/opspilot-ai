@@ -132,6 +132,20 @@ export class IncidentsService {
           },
         },
       });
+      if (assignee) {
+        // I6: assignment-at-creation notifies like reassignment does
+        await tx.outboxEvent.create({
+          data: {
+            routingKey: 'incident.assigned',
+            payload: {
+              incidentId: created.id,
+              projectId: project.id,
+              assigneeId: assignee.id,
+              actorId: actor.sub,
+            },
+          },
+        });
+      }
       return created;
     });
 

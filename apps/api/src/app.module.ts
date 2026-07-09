@@ -5,6 +5,8 @@ import { AuthModule } from './auth/auth.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { DeploymentsModule } from './deployments/deployments.module';
 import { IncidentsModule } from './incidents/incidents.module';
+import { MetricsModule } from './metrics/metrics.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { OrgsModule } from './orgs/orgs.module';
 import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import { HealthController } from './health/health.controller';
@@ -21,8 +23,8 @@ import { RedisModule } from './redis/redis.module';
     IncidentsModule,
     DeploymentsModule,
     DashboardModule,
-    // Feature modules land here as they are built:
-    // NotificationsModule, MetricsModule, ...
+    NotificationsModule,
+    MetricsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_FILTER, useClass: ProblemDetailsFilter }],
