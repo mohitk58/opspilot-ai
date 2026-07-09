@@ -42,7 +42,7 @@ Root scripts use `--workspaces --if-present`; some tooling is referenced by scri
 
 - ESLint config in `apps/web` (lint script exists but has no config)
 
-Filled: Jest config (`apps/api/jest.config.js`), ESLint flat config (`apps/api/eslint.config.mjs`), and the initial Prisma migration exist as of the auth module. `apps/api/prisma/seed.ts` seeds demo logins per role (admin/engineer/viewer `@opspilot.dev`, password from `SEED_PASSWORD`, dev fallback `Password123!`); it runs via ts-node and stays outside the tsconfig `include`/`rootDir`, which cover only `src/`.
+Filled: Jest config (`apps/api/jest.config.js`), ESLint flat config (`apps/api/eslint.config.mjs`), and the initial Prisma migration exist as of the auth module. `apps/api/prisma/seed.ts` seeds demo logins per role (admin/engineer/viewer `@opspilot.dev`, password from `SEED_PASSWORD`, dev fallback `Password123!`). `apps/api/prisma/seed-load.ts` (`npm run prisma:seed-load -w apps/api`) seeds the 1M/5M/2M-row perf dataset into a `LOAD` project — delete it after measuring, it isn't meant to linger. Both run via ts-node and intentionally stay outside the tsconfig `include`/`rootDir`, which cover only `src/` (their IDE-only "Cannot find name 'process'" squiggle is that, not a real error).
 
 Note: `@opspilot/types` is consumed as raw TS source (`main: src/index.ts`, no build step) — consumers compile it themselves, so keep it free of runtime deps other than `zod`.
 
@@ -90,8 +90,22 @@ Every module ships API + UI together (standing instruction): TanStack Query hook
 
 - [x] Ops — `prom-client` instrumentation (`/metrics`: HTTP histogram by route pattern, error counter, cache hit/miss by key prefix, outbox gauge; RabbitMQ depths via its prometheus plugin), Grafana fully provisioned from `infrastructure/` (dashboard + the 3 documented alerts — DLQ alert verified firing), Dockerfiles (API image serves api/workers/migrate roles; web standalone; **node:24-slim** — raw-TS types package needs Node 24 type stripping, bcrypt needs glibc), `docker-compose.prod.yml`, CI (typecheck, docker build, gitleaks) + `deploy.yml` → GHCR (ECR later) + `infrastructure/deploy/deploy.sh` with health gate and automatic rollback (drilled locally). Broker-restart resilience added to RabbitService (reconnect + consumer re-attach, verified live). Deferred: pino structured logging.
 
-Next, in order:
-1. **Performance case studies** — seed 1M incidents (`prisma/seed-load.ts`), capture EXPLAIN ANALYZE before/after indexes; metric range queries before/after partitioning. (Dashboard-vs-Redis is done: `docs/perf/dashboard-redis-caching.md`.)
+- [x] Performance case studies — flagship study done: `apps/api/prisma/seed-load.ts` seeds 1M incidents/5M timeline events/2M metrics (Postgres `generate_series` bulk insert, not row-by-row — 1M incidents in 18s); dropped and restored `Incident_projectId_status_createdAt_idx`, measured **426.5 ms → 0.085 ms (~5,000×)** on the real incident-list query shape. Evidence + trade-offs in `docs/perf/incident-list-indexing.md`. Seeded rows deleted immediately after measuring — the dev DB does not carry 1M+ rows day-to-day. Metric-range-query partitioning study explicitly deferred to Phase 3 per docs/03 §4.
+
+## MVP roadmap: complete
+
+Every phased item in the original scaffold is checked off (auth → orgs →
+incidents → deployments → dashboard → workers/notifications/metrics → ops →
+the flagship perf study). Remaining work is Phase 2+ per docs/02 §4 and
+deferred items called out above:
+
+- ECS Fargate + Terraform (stretch goal, currently single-EC2/Docker Compose)
+- ECR instead of GHCR (swap is two lines in `deploy.yml`)
+- pino structured JSON logging (deferred during the Ops task)
+- OpenTelemetry tracing (docs/02 §5, explicitly a stretch goal)
+- `SystemMetric` monthly partitioning + before/after case study (docs/03 §4)
+- Real metrics ingestion (Prometheus scrape of live services) to replace the
+  simulator once there is real traffic to observe
 
 ## The portfolio narrative (why it matters)
 
