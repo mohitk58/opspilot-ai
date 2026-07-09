@@ -24,7 +24,7 @@ infrastructure/ Grafana dashboards, Terraform (Phase 2)
 ## Commands
 
 ```bash
-docker compose up -d                 # Postgres 16, Redis 7, RabbitMQ 3.13 (mgmt UI :15672)
+docker compose up -d                 # Postgres 16, Redis 7, RabbitMQ 3.13 (mgmt UI :15672), Prometheus :9090, Grafana :3001 (opspilot/opspilot)
 npm install                          # workspace install from repo root
 npm run dev:api                      # NestJS on :4000
 npm run dev:web                      # Next.js on :3000
@@ -88,9 +88,10 @@ Every module ships API + UI together (standing instruction): TanStack Query hook
 
 - [x] Workers + notifications & metrics (N1, I6, M3) — second entrypoint (`npm run dev:workers`): outbox relay (1 s poll → `opspilot.events`, stamps `publishedAt`), idempotent notifications consumer (`sourceEventId` unique; TTL-backoff retry ×3 → DLQ, verified live with a poison message), metrics simulator (15 s random walk). Read APIs: `/notifications` (+read/read-all) and `/metrics/system` (org-wide reads average across projects per tick). UI: header bell with unread badge, M3 latency/error charts. Deliberate deviation: **no `q.audit` consumer** — audit rows are written transactionally with each mutation (rule 4); the queue is asserted so the documented topology exists.
 
+- [x] Ops — `prom-client` instrumentation (`/metrics`: HTTP histogram by route pattern, error counter, cache hit/miss by key prefix, outbox gauge; RabbitMQ depths via its prometheus plugin), Grafana fully provisioned from `infrastructure/` (dashboard + the 3 documented alerts — DLQ alert verified firing), Dockerfiles (API image serves api/workers/migrate roles; web standalone; **node:24-slim** — raw-TS types package needs Node 24 type stripping, bcrypt needs glibc), `docker-compose.prod.yml`, CI (typecheck, docker build, gitleaks) + `deploy.yml` → GHCR (ECR later) + `infrastructure/deploy/deploy.sh` with health gate and automatic rollback (drilled locally). Broker-restart resilience added to RabbitService (reconnect + consumer re-attach, verified live). Deferred: pino structured logging.
+
 Next, in order:
-1. **Ops** — Prometheus metrics, Grafana dashboard JSON, Dockerfiles, deploy pipeline with health gate + rollback.
-2. **Performance case studies** — seed 1M incidents (`prisma/seed-load.ts`), capture EXPLAIN ANALYZE before/after indexes; metric range queries before/after partitioning. (Dashboard-vs-Redis is done: `docs/perf/dashboard-redis-caching.md`.)
+1. **Performance case studies** — seed 1M incidents (`prisma/seed-load.ts`), capture EXPLAIN ANALYZE before/after indexes; metric range queries before/after partitioning. (Dashboard-vs-Redis is done: `docs/perf/dashboard-redis-caching.md`.)
 
 ## The portfolio narrative (why it matters)
 
