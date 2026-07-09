@@ -38,11 +38,44 @@ services:
     ports:
       - "5672:5672"    # AMQP
       - "15672:15672"  # Management UI → http://localhost:15672
+      - "15692:15692"  # Prometheus metrics (rabbitmq_prometheus plugin)
+    volumes:
+      - ./infrastructure/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+      - ./infrastructure/rabbitmq/rabbitmq.conf:/etc/rabbitmq/conf.d/20-prometheus.conf:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
       interval: 10s
       timeout: 5s
       retries: 10
 
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: opspilot-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # reach the host-run API on Linux too
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: opspilot-grafana
+    ports:
+      - "3001:3000" # web app owns :3000 → http://localhost:3001 (opspilot/opspilot)
+    environment:
+      GF_SECURITY_ADMIN_USER: opspilot
+      GF_SECURITY_ADMIN_PASSWORD: opspilot
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      - prometheus
+
 volumes:
   pgdata:
+  promdata:
+  grafanadata:
