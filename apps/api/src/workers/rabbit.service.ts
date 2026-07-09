@@ -27,11 +27,19 @@ const NOTIFICATION_BINDINGS = [
  * audit rows are written transactionally with each mutation (rule 4) —
  * consuming here would duplicate them with weaker guarantees.
  */
+const RECONNECT_DELAY_MS = 5_000;
+
 @Injectable()
 export class RabbitService implements OnModuleDestroy {
   private readonly logger = new Logger(RabbitService.name);
   private connection?: amqp.ChannelModel;
   private channel?: amqp.ConfirmChannel;
+  private shuttingDown = false;
+  /** Registered consumers, re-attached after every (re)connect. */
+  private readonly consumers: Array<{
+    queue: string;
+    handler: (msg: amqp.ConsumeMessage) => Promise<void>;
+  }> = [];
 
   constructor(private readonly config: ConfigService) {}
 
@@ -41,9 +49,13 @@ export class RabbitService implements OnModuleDestroy {
     this.connection = await amqp.connect(url);
     this.connection.on('error', (err) => this.logger.error(`AMQP connection error: ${err.message}`));
     this.connection.on('close', () => {
-      this.logger.warn('AMQP connection closed');
       this.connection = undefined;
       this.channel = undefined;
+      if (this.shuttingDown) return;
+      // A broker restart must not orphan the consumers (docs/02 §7): keep
+      // retrying until the topology is re-asserted and consumers re-attached.
+      this.logger.warn(`AMQP connection closed — reconnecting in ${RECONNECT_DELAY_MS} ms`);
+      this.scheduleReconnect();
     });
 
     const ch = await this.connection.createConfirmChannel();
@@ -75,7 +87,29 @@ export class RabbitService implements OnModuleDestroy {
 
     this.channel = ch;
     this.logger.log('AMQP topology asserted');
+
+    // Re-attach consumers registered before a reconnect
+    await ch.prefetch(10);
+    for (const consumer of this.consumers) {
+      await ch.consume(consumer.queue, (msg) => {
+        if (!msg) return;
+        void consumer.handler(msg).catch((err) =>
+          this.logger.error(`Unhandled consumer error: ${(err as Error).message}`),
+        );
+      });
+      this.logger.log(`Consumer (re)attached to ${consumer.queue}`);
+    }
     return ch;
+  }
+
+  /** Retries until the broker is back; each failure schedules the next try. */
+  private scheduleReconnect(): void {
+    setTimeout(() => {
+      void this.connect().catch((err) => {
+        this.logger.error(`Reconnect failed, retrying: ${(err as Error).message}`);
+        this.scheduleReconnect();
+      });
+    }, RECONNECT_DELAY_MS).unref();
   }
 
   /** Publish with broker confirmation (used by the outbox relay). */
@@ -112,14 +146,18 @@ export class RabbitService implements OnModuleDestroy {
     queue: string,
     handler: (msg: amqp.ConsumeMessage) => Promise<void>,
   ): Promise<void> {
+    this.consumers.push({ queue, handler }); // survives reconnects
+    const attachedVia = this.channel; // already connected → attach directly
     const ch = await this.connect();
-    await ch.prefetch(10);
-    await ch.consume(queue, (msg) => {
-      if (!msg) return;
-      void handler(msg).catch((err) =>
-        this.logger.error(`Unhandled consumer error: ${(err as Error).message}`),
-      );
-    });
+    if (attachedVia) {
+      await ch.consume(queue, (msg) => {
+        if (!msg) return;
+        void handler(msg).catch((err) =>
+          this.logger.error(`Unhandled consumer error: ${(err as Error).message}`),
+        );
+      });
+    }
+    // otherwise connect() above just attached it from this.consumers
   }
 
   ack(msg: amqp.ConsumeMessage): void {
@@ -132,6 +170,7 @@ export class RabbitService implements OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    this.shuttingDown = true; // suppress the reconnect loop
     await this.channel?.close().catch(() => undefined);
     await this.connection?.close().catch(() => undefined);
   }
