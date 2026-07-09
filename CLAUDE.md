@@ -28,12 +28,13 @@ docker compose up -d                 # Postgres 16, Redis 7, RabbitMQ 3.13 (mgmt
 npm install                          # workspace install from repo root
 npm run dev:api                      # NestJS on :4000
 npm run dev:web                      # Next.js on :3000
+npm run dev:workers                  # outbox relay + queue consumers + metrics simulator
 npm run prisma:migrate -w apps/api   # create/apply dev migrations
 npm run lint / npm test / npm run build
 npm test -w apps/api -- incidents.service.spec.ts   # run a single test file (Jest pattern match)
 ```
 
-Env: copy `.env.example` → `.env`. Never commit `.env`.
+Env: copy `.env.example` → `apps/api/.env` (single env home — the API and every Prisma CLI command run with that cwd; a second copy at the repo root makes Prisma abort with an env-conflict error). Never commit `.env`.
 
 ### Scaffold gaps (update this list as they're filled)
 
@@ -85,10 +86,11 @@ Done:
 
 Every module ships API + UI together (standing instruction): TanStack Query hooks over `authApi` in `apps/web/hooks/`, pages under the guarded `(app)` layout.
 
+- [x] Workers + notifications & metrics (N1, I6, M3) — second entrypoint (`npm run dev:workers`): outbox relay (1 s poll → `opspilot.events`, stamps `publishedAt`), idempotent notifications consumer (`sourceEventId` unique; TTL-backoff retry ×3 → DLQ, verified live with a poison message), metrics simulator (15 s random walk). Read APIs: `/notifications` (+read/read-all) and `/metrics/system` (org-wide reads average across projects per tick). UI: header bell with unread badge, M3 latency/error charts. Deliberate deviation: **no `q.audit` consumer** — audit rows are written transactionally with each mutation (rule 4); the queue is asserted so the documented topology exists.
+
 Next, in order:
-1. **Workers** — outbox relay, RabbitMQ consumers (notifications, audit), metrics simulator cron; then the metrics read API + M3 charts.
-6. **Ops** — Prometheus metrics, Grafana dashboard JSON, Dockerfiles, deploy pipeline with health gate + rollback.
-7. **Performance case studies** — seed 1M incidents, capture EXPLAIN ANALYZE before/after indexes; dashboard latency before/after Redis. Write results to `docs/perf/`.
+1. **Ops** — Prometheus metrics, Grafana dashboard JSON, Dockerfiles, deploy pipeline with health gate + rollback.
+2. **Performance case studies** — seed 1M incidents (`prisma/seed-load.ts`), capture EXPLAIN ANALYZE before/after indexes; metric range queries before/after partitioning. (Dashboard-vs-Redis is done: `docs/perf/dashboard-redis-caching.md`.)
 
 ## The portfolio narrative (why it matters)
 
