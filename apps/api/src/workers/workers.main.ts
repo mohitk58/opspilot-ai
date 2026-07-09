@@ -1,13 +1,14 @@
 import { NestFactory } from '@nestjs/core';
-import { Logger } from '@nestjs/common';
+import { Logger } from 'nestjs-pino';
 import { WorkersModule } from './workers.module';
 
 async function bootstrap() {
-  const app = await NestFactory.createApplicationContext(WorkersModule, {
-    logger: ['log', 'warn', 'error'],
-  });
+  const app = await NestFactory.createApplicationContext(WorkersModule, { bufferLogs: true });
+  app.useLogger(app.get(Logger));
   app.enableShutdownHooks(); // clean AMQP close + interval teardown
-  new Logger('Workers').log('OpsPilot workers running (relay, notifications, metrics simulator)');
+  app
+    .get(Logger)
+    .log('OpsPilot workers running (relay, notifications, metrics simulator)', 'Workers');
 }
 
 void bootstrap();

@@ -3,10 +3,14 @@ import { VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // bufferLogs holds Nest's own bootstrap logs until useLogger below swaps
+  // in pino — otherwise they'd print through the default logger and be lost.
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  app.useLogger(app.get(Logger));
 
   app.use(helmet());
   app.use(cookieParser());
@@ -29,7 +33,7 @@ async function bootstrap() {
 
   const port = Number(process.env.API_PORT ?? 4000);
   await app.listen(port);
-  console.log(`OpsPilot API running on http://localhost:${port} — docs at /api/docs`);
+  app.get(Logger).log(`OpsPilot API running on http://localhost:${port} — docs at /api/docs`);
 }
 
 bootstrap();

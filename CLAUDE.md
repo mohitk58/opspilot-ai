@@ -99,9 +99,10 @@ incidents → deployments → dashboard → workers/notifications/metrics → op
 the flagship perf study). Remaining work is Phase 2+ per docs/02 §4 and
 deferred items called out above:
 
+- [x] pino structured JSON logging — `nestjs-pino`, wired via `app.useLogger(app.get(Logger))` in both `main.ts` and `workers.main.ts` (`bufferLogs: true` first), so every existing `new Logger(X.name)` call across the codebase emits structured JSON with zero per-file changes. `requestId`/`userId`/route/`responseTime` on every access-log line (FR-5: an incoming `x-request-id` header is echoed, not replaced — verified live); `authorization`/`cookie`/`set-cookie` redacted; `/metrics` and `/health` excluded from access logs (verified zero log lines across repeated polls); `pino-pretty` in dev, plain JSON in prod (CloudWatch-ready); level from `LOG_LEVEL` env, else `info` in prod / `debug` elsewhere.
+
 - ECS Fargate + Terraform (stretch goal, currently single-EC2/Docker Compose)
 - ECR instead of GHCR (swap is two lines in `deploy.yml`)
-- pino structured JSON logging (deferred during the Ops task)
 - OpenTelemetry tracing (docs/02 §5, explicitly a stretch goal)
 - `SystemMetric` monthly partitioning + before/after case study (docs/03 §4)
 - Real metrics ingestion (Prometheus scrape of live services) to replace the

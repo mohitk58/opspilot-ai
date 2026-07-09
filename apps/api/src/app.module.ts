@@ -10,6 +10,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { OrgsModule } from './orgs/orgs.module';
 import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import { HealthController } from './health/health.controller';
+import { LoggingModule } from './monitoring/logging.module';
 import { MetricsInterceptor } from './monitoring/metrics.interceptor';
 import { PrometheusController } from './monitoring/prometheus.controller';
 import { PrismaModule } from './prisma/prisma.module';
@@ -18,6 +19,7 @@ import { RedisModule } from './redis/redis.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    LoggingModule,
     PrismaModule,
     RedisModule,
     AuthModule,
