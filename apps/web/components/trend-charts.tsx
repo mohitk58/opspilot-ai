@@ -12,7 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { TrendPointDto } from '@opspilot/types';
+import type { MetricSeriesDto, TrendPointDto } from '@opspilot/types';
 
 // Palette validated with the dataviz six-checks script against surface
 // #0b0f14 (dark): lightness band, chroma, CVD separation, contrast all pass.
@@ -84,6 +84,58 @@ export function IncidentTrendChart({
         <Legend wrapperStyle={{ fontSize: 12 }} />
         <Line type="monotone" dataKey="opened" stroke={COLOR.opened} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
         <Line type="monotone" dataKey="resolved" stroke={COLOR.resolved} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+      </LineChart>
+    </ChartFrame>
+  );
+}
+
+// Fixed service→hue assignment (never cycled); both steps are from the
+// validated pair. A third service would fold to muted slate, not a new hue.
+const SERVICE_COLORS: Record<string, string> = { api: '#d97706', worker: '#059669' };
+const FALLBACK_SERIES_COLOR = '#64748b';
+
+const shortTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+/** M3 — one metric, one line per service. */
+export function MetricChart({
+  title,
+  series,
+}: {
+  title: string;
+  series: MetricSeriesDto[];
+}) {
+  const byTime = new Map<string, Record<string, string | number>>();
+  for (const s of series) {
+    for (const p of s.points) {
+      const row = byTime.get(p.t) ?? { t: p.t };
+      row[s.service] = p.value;
+      byTime.set(p.t, row);
+    }
+  }
+  const data = [...byTime.values()].sort((a, b) => String(a.t).localeCompare(String(b.t)));
+  const services = series.map((s) => s.service);
+
+  return (
+    <ChartFrame title={title}>
+      <LineChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+        <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
+        <XAxis dataKey="t" tickFormatter={shortTime} tick={{ fill: INK_MUTED, fontSize: 11 }} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={40} />
+        <YAxis tick={{ fill: INK_MUTED, fontSize: 11 }} tickLine={false} axisLine={false} width={56} />
+        <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: INK_MUTED }} labelFormatter={(v) => shortTime(String(v))} cursor={{ stroke: GRID }} />
+        <Legend wrapperStyle={{ fontSize: 12 }} />
+        {services.map((service) => (
+          <Line
+            key={service}
+            type="monotone"
+            dataKey={service}
+            stroke={SERVICE_COLORS[service] ?? FALLBACK_SERIES_COLOR}
+            strokeWidth={2}
+            dot={false}
+            activeDot={{ r: 4 }}
+            connectNulls
+          />
+        ))}
       </LineChart>
     </ChartFrame>
   );

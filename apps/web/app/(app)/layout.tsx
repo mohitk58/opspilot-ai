@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { NotificationBell } from '@/components/notification-bell';
 import { bootstrapSession, logout, useAuth } from '@/lib/auth';
 
 /**
@@ -51,6 +52,7 @@ export default function AppLayout({
             </Link>
           </nav>
           <div className="flex items-center gap-4 text-sm">
+            <NotificationBell />
             <span className="text-slate-400">{user.fullName}</span>
             <span className="rounded-full border border-slate-700 px-2 py-0.5 text-xs uppercase tracking-wider text-slate-400">
               {user.role}

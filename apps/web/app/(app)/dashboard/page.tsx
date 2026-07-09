@@ -9,8 +9,9 @@ import {
   type IncidentSeverity,
 } from '@opspilot/types';
 import { SeverityBadge, StatusBadge } from '@/components/badges';
-import { DeployTrendChart, IncidentTrendChart } from '@/components/trend-charts';
+import { DeployTrendChart, IncidentTrendChart, MetricChart } from '@/components/trend-charts';
 import { useDashboardActivity, useDashboardSummary } from '@/hooks/use-dashboard';
+import { useSystemMetrics } from '@/hooks/use-metrics';
 import { useProjects } from '@/hooks/use-projects';
 import { api } from '@/lib/api';
 
@@ -91,6 +92,8 @@ export default function DashboardPage() {
         />
       </section>
 
+      <SystemMetricsSection projectId={projectId} />
+
       {/* M4: recent activity across projects */}
       <section className="mt-10">
         <h2 className="text-sm uppercase tracking-wider text-slate-500">Recent activity</h2>
@@ -123,6 +126,32 @@ export default function DashboardPage() {
         )}
       </section>
     </main>
+  );
+}
+
+/** M3 — simulated telemetry (last hour, 15 s cadence) until real ingestion. */
+function SystemMetricsSection({ projectId }: { projectId?: string }) {
+  const { data: series } = useSystemMetrics(projectId);
+  if (!series || series.length === 0) {
+    return (
+      <section className="mt-6 rounded-lg border border-slate-800 p-5 text-sm text-slate-500">
+        System metrics appear here once the workers process is running (
+        <code className="rounded bg-slate-900 px-1.5 py-0.5 text-xs">npm run dev:workers</code>
+        ) — the simulator writes latency and error-rate samples every 15 s.
+      </section>
+    );
+  }
+  return (
+    <section className="mt-6 grid gap-4 lg:grid-cols-2">
+      <MetricChart
+        title="API latency p95 (ms) — last hour, simulated"
+        series={series.filter((s) => s.metric === 'latency_p95_ms')}
+      />
+      <MetricChart
+        title="Error rate (%) — last hour, simulated"
+        series={series.filter((s) => s.metric === 'error_rate')}
+      />
+    </section>
   );
 }
 
