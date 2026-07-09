@@ -3,6 +3,9 @@
 
 generator client {
   provider = "prisma-client-js"
+  // native = dev machine; the two linux targets cover the Docker image on
+  // arm64 (local builds) and x64 (CI runners) — both Debian/OpenSSL 3
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
