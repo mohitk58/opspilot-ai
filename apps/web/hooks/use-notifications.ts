@@ -15,7 +15,11 @@ export function useNotifications(query: Partial<ListNotificationsQuery> = {}) {
   return useQuery({
     queryKey: ['notifications', query],
     queryFn: () => authApi<NotificationList>(`/notifications${qs ? `?${qs}` : ''}`),
-    refetchInterval: 30_000, // poll — SSE/websockets are out of MVP scope
+    // Poll (SSE/websockets are out of MVP scope). intervalInBackground matters:
+    // by default TanStack pauses the interval while the window is unfocused,
+    // so a bell in an idle window would only update on reload.
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: true,
   });
 }
 
