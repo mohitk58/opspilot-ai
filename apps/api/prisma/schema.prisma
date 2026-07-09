@@ -245,6 +245,8 @@ model Notification {
   body      String
   link      String?
   readAt    DateTime?
+  // Outbox event id + recipient — makes the at-least-once consumer idempotent
+  sourceEventId String?      @unique
   createdAt DateTime         @default(now())
 
   user User @relation(fields: [userId], references: [id])

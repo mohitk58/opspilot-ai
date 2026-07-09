@@ -274,6 +274,52 @@ export interface IncidentDto {
   deployment: { id: string; version: string; environment: DeploymentEnv } | null;
 }
 
+// ── Notifications (Epic 6, N1) ──────────────────────────────
+
+export const NotificationType = z.enum([
+  'INCIDENT_ASSIGNED',
+  'INCIDENT_STATUS',
+  'DEPLOYMENT_FAILED',
+  'MENTION',
+]);
+export type NotificationType = z.infer<typeof NotificationType>;
+
+export const ListNotificationsQuery = z.object({
+  /** 'true' filters to unread only (string enum: query params + pipe want input = output) */
+  unread: z.enum(['true', 'false']).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+});
+export type ListNotificationsQuery = z.infer<typeof ListNotificationsQuery>;
+
+export interface NotificationDto {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  link: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+// ── System metrics (M3) ─────────────────────────────────────
+
+export const MetricsQuery = z.object({
+  projectId: z.string().uuid().optional(),
+  service: z.string().max(100).optional(),
+  metric: z.string().max(100).optional(),
+  /** Defaults to the last hour when omitted */
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+});
+export type MetricsQuery = z.infer<typeof MetricsQuery>;
+
+export interface MetricSeriesDto {
+  service: string;
+  metric: string;
+  points: { t: string; value: number }[];
+}
+
 // ── Dashboard (Epic 4) ──────────────────────────────────────
 
 export const DashboardQuery = z.object({
