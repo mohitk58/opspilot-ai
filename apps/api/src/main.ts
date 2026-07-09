@@ -15,7 +15,7 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', { exclude: ['metrics'] }); // bare /metrics for Prometheus
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
 
   const swaggerConfig = new DocumentBuilder()

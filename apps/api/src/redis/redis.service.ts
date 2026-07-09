@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { cacheOps } from '../monitoring/metrics';
 
 const COMMAND_TIMEOUT_MS = 100;
 
@@ -30,20 +31,34 @@ export class RedisService implements OnModuleDestroy {
   /** Runs a command with the degradation contract: timeout/failure → fallback. */
   private async safe<T>(op: () => Promise<T>, fallback: T): Promise<T> {
     try {
-      return await Promise.race([
-        op(),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('redis timeout')), COMMAND_TIMEOUT_MS),
-        ),
-      ]);
+      return await this.safeOrThrow(op);
     } catch (err) {
       this.logger.warn(`Redis degraded: ${(err as Error).message}`);
       return fallback;
     }
   }
 
-  get(key: string): Promise<string | null> {
-    return this.safe(() => this.client.get(key), null);
+  /** Same timeout race, but the caller decides what a failure means. */
+  private safeOrThrow<T>(op: () => Promise<T>): Promise<T> {
+    return Promise.race([
+      op(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('redis timeout')), COMMAND_TIMEOUT_MS),
+      ),
+    ]);
+  }
+
+  async get(key: string): Promise<string | null> {
+    const prefix = key.split(':')[0]; // dash | refresh | idem — bounded label set
+    try {
+      const value = await this.safeOrThrow(() => this.client.get(key));
+      cacheOps.inc({ prefix, result: value === null ? 'miss' : 'hit' });
+      return value;
+    } catch (err) {
+      cacheOps.inc({ prefix, result: 'degraded' });
+      this.logger.warn(`Redis degraded: ${(err as Error).message}`);
+      return null;
+    }
   }
 
   setWithTtl(key: string, value: string, ttlSec: number): Promise<unknown> {
