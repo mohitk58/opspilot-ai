@@ -64,6 +64,7 @@ jobs:
         uses: dorny/test-reporter@v1
         if: always()
         with:
+          token: ${{ secrets.GITHUB_TOKEN }} # not ambient to 3rd-party actions
           name: Unit Tests
           path: apps/api/test-results/junit.xml
           reporter: jest-junit
