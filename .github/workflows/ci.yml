@@ -9,6 +9,10 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write   # dorny/test-reporter creates a Check Run
+      pull-requests: write
 
     services:
       postgres:
@@ -51,6 +55,19 @@ jobs:
 
       - name: Unit tests
         run: npm test --workspaces --if-present
+
+      # if: always() — publish results whether tests passed or failed, so a
+      # failure shows exactly which test cases broke, not just a red job.
+      # This step never changes the job's pass/fail status; the "Unit tests"
+      # step above already does that.
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Unit Tests
+          path: apps/api/test-results/junit.xml
+          reporter: jest-junit
+          fail-on-error: false
 
       - name: Build
         run: npm run build --workspaces --if-present
