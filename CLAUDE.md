@@ -101,12 +101,16 @@ deferred items called out above:
 
 - [x] pino structured JSON logging — `nestjs-pino`, wired via `app.useLogger(app.get(Logger))` in both `main.ts` and `workers.main.ts` (`bufferLogs: true` first), so every existing `new Logger(X.name)` call across the codebase emits structured JSON with zero per-file changes. `requestId`/`userId`/route/`responseTime` on every access-log line (FR-5: an incoming `x-request-id` header is echoed, not replaced — verified live); `authorization`/`cookie`/`set-cookie` redacted; `/metrics` and `/health` excluded from access logs (verified zero log lines across repeated polls); `pino-pretty` in dev, plain JSON in prod (CloudWatch-ready); level from `LOG_LEVEL` env, else `info` in prod / `debug` elsewhere.
 
+- [x] `SystemMetric` monthly partitioning (docs/03 §3–4) — converted to native `PARTITION BY RANGE (recordedAt)` via a table-swap migration (`20260710163000_partition_system_metric`), composite `(id, recordedAt)` PK (Postgres requires the partition key in the PK; `id` is never selected anywhere so zero app impact), monthly partitions Jan 2025–Dec 2027 + a `DEFAULT` catch-all. **Kept permanently** (unlike the index study, this isn't reverted). Measured on 3M seeded rows/12 months: **353.5 ms → 20.5 ms** (~17×, ~34× fewer buffers) on a last-7-days range query — the planner's `Subplans Removed: 36` shows it pruned every partition but the one matching month. `MetricsSimulatorService`/`MetricsService` needed zero code changes (Prisma is partition-agnostic). Evidence + trade-offs (no automated partition-creation job — flagged, not built) in `docs/perf/system-metric-partitioning.md`. `apps/api/prisma/seed-metrics-load.ts` is the reusable seed script; seeded rows deleted after measuring.
+
 - ECS Fargate + Terraform (stretch goal, currently single-EC2/Docker Compose)
 - ECR instead of GHCR (swap is two lines in `deploy.yml`)
 - OpenTelemetry tracing (docs/02 §5, explicitly a stretch goal)
-- `SystemMetric` monthly partitioning + before/after case study (docs/03 §4)
 - Real metrics ingestion (Prometheus scrape of live services) to replace the
   simulator once there is real traffic to observe
+- Automated partition maintenance (`pg_partman` or a cron) for `SystemMetric`
+  — partitions are currently pre-created through Dec 2027 with a `DEFAULT`
+  safety net, not auto-rolled monthly
 
 ## The portfolio narrative (why it matters)
 

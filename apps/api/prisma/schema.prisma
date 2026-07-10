@@ -288,8 +288,12 @@ model OutboxEvent {
 
 // ───────────────────────── Metrics (simulated in MVP) ─────────────────────────
 
+// Range-partitioned by recordedAt (monthly) — see migration
+// 20260710_partition_system_metric and docs/perf/system-metric-partitioning.md.
+// Postgres requires the partition key in every unique/primary key, hence the
+// composite id; `id` itself is never selected/returned by the app.
 model SystemMetric {
-  id         BigInt   @id @default(autoincrement())
+  id         BigInt   @default(autoincrement())
   projectId  String   @db.Uuid
   service    String
   metric     String
@@ -298,5 +302,6 @@ model SystemMetric {
 
   project Project @relation(fields: [projectId], references: [id])
 
+  @@id([id, recordedAt])
   @@index([projectId, service, metric, recordedAt])
 }
