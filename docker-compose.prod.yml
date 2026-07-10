@@ -1,0 +1,58 @@
+# Production-shaped stack (docs/02 §4 single-box topology), runnable locally:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Image tags come from the deploy pipeline (API_IMAGE/WEB_IMAGE, git-SHA
+# tagged); local fallback builds from source.
+services:
+  api:
+    image: ${API_IMAGE:-opspilot-api:local}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment: &api-env
+      DATABASE_URL: postgresql://opspilot:opspilot@postgres:5432/opspilot?schema=public
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://opspilot:opspilot@rabbitmq:5672
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-in-prod}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-too}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      NODE_ENV: production
+    ports:
+      - "${API_HOST_PORT:-4000}:4000" # remap when a dev API owns :4000
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/api/v1/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # One-shot migration runner — same artifact as the API (deploy.sh step 2)
+  migrate:
+    image: ${API_IMAGE:-opspilot-api:local}
+    profiles: ["deploy"]
+    working_dir: /repo/apps/api
+    command: ["npx", "prisma", "migrate", "deploy"]
+    environment: *api-env
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  workers:
+    image: ${API_IMAGE:-opspilot-api:local}
+    command: ["node", "apps/api/dist/workers/workers.main.js"]
+    environment: *api-env
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  web:
+    image: ${WEB_IMAGE:-opspilot-web:local}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
+    ports:
+      - "${WEB_HOST_PORT:-3000}:3000"
+    depends_on:
+      - api

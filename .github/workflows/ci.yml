@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, 'feature/**']
   pull_request:
     branches: [main, develop]
 
@@ -44,10 +44,30 @@ jobs:
       - name: Lint
         run: npm run lint --workspaces --if-present
 
+      - name: Typecheck
+        run: |
+          npx tsc --noEmit -p apps/api/tsconfig.json
+          npx tsc --noEmit -p apps/web/tsconfig.json
+
       - name: Unit tests
         run: npm test --workspaces --if-present
 
       - name: Build
         run: npm run build --workspaces --if-present
 
-  # Phase 2: docker build → push to ECR → deploy → health gate → smoke tests → rollback on failure
+      - name: Docker build (no push — PR gate)
+        run: |
+          docker build -f apps/api/Dockerfile -t opspilot-api:ci .
+          docker build -f apps/web/Dockerfile -t opspilot-web:ci .
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Deployment lives in deploy.yml: push GHCR images → SSH deploy →
+  # health gate → automatic rollback to the previous tag

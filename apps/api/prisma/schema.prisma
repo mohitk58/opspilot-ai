@@ -3,6 +3,9 @@
 
 generator client {
   provider = "prisma-client-js"
+  // native = dev machine; the two linux targets cover the Docker image on
+  // arm64 (local builds) and x64 (CI runners) — both Debian/OpenSSL 3
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -108,6 +111,9 @@ model Project {
   name           String
   key            String
   description    String?
+  // Per-project incident counter, claimed with an atomic UPDATE..RETURNING
+  // inside the create-incident transaction (docs/03 §3 — race-safe PAY-42)
+  nextIncidentNumber Int @default(1)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
@@ -242,6 +248,8 @@ model Notification {
   body      String
   link      String?
   readAt    DateTime?
+  // Outbox event id + recipient — makes the at-least-once consumer idempotent
+  sourceEventId String?      @unique
   createdAt DateTime         @default(now())
 
   user User @relation(fields: [userId], references: [id])

@@ -1,0 +1,15 @@
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/coverage
+*.tsbuildinfo
+**/*.tsbuildinfo
+.git
+.github
+.env
+.env.*
+!.env.example
+docs
+infrastructure/grafana
+infrastructure/prometheus
